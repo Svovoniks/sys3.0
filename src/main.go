@@ -258,14 +258,14 @@ func eraseSelectionScreen(state *SelectionScreenState) {
 	state.RLock()
 	defer state.RUnlock()
 
-	for range state.lineConunt - 1 {
+	for range state.lineCount - 1 {
 		fmt.Print("\r")
 		fmt.Print(strings.Repeat(" ", state.width))
 		fmt.Print("\033[F")
 	}
 }
 func showSelectionScreen(state *SelectionScreenState) {
-	if state.lineConunt != 0 {
+	if state.lineCount > 0 {
 		eraseSelectionScreen(state)
 	}
 
@@ -298,7 +298,7 @@ func showSelectionScreen(state *SelectionScreenState) {
 	buffer.WriteString(string(state.curText))
 	str := buffer.String()
 	fmt.Print(str)
-	state.lineConunt = int(math.Ceil(float64(len(str)) / float64(state.width)))
+	state.lineCount = int(math.Ceil(float64(len(str)) / float64(state.width)))
 }
 
 type Option struct {
@@ -353,14 +353,14 @@ func processRune(rn rune, state *SelectionScreenState) {
 
 type SelectionScreenState struct {
 	sync.RWMutex
-	options    Options
-	curText    []rune
-	result     string
-	maxLen     int
-	lineConunt int
-	width      int
-	done       bool
-	exit       bool
+	options   Options
+	curText   []rune
+	result    string
+	maxLen    int
+	lineCount int
+	width     int
+	done      bool
+	exit      bool
 }
 
 type UserResult struct {
@@ -419,14 +419,14 @@ func getLauncherFromUser(cfg *Config) UserResult {
 					}
 					state.Lock()
 					w := val.Width
-					state.lineConunt = int(math.Ceil(float64(state.width*state.lineConunt) / float64(w)))
+					state.lineCount = max(int(math.Ceil(float64(state.width*state.lineCount)/float64(w))), state.lineCount) + 1
 					state.width = w
 					state.Unlock()
 
 					eraseSelectionScreen(&state)
 
 					state.Lock()
-					state.lineConunt = 0
+					state.lineCount = 0
 					state.Unlock()
 
 					showSelectionScreen(&state)
@@ -451,7 +451,7 @@ func getLauncherFromUser(cfg *Config) UserResult {
 		print("hey")
 		state.Lock()
 		if state.done || state.exit {
-			state.lineConunt += 1
+			state.lineCount += 1
 			state.Unlock()
 
 			eraseSelectionScreen(&state)
