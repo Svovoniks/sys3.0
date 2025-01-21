@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/agnivade/levenshtein"
@@ -253,17 +255,22 @@ func getWidth() int {
 }
 
 func eraseSelectionScreen(state *SelectionScreenState) {
-	width := getWidth()
+	state.RLock()
+	defer state.RUnlock()
+
 	for range state.lineConunt - 1 {
 		fmt.Print("\r")
-		fmt.Print(strings.Repeat(" ", width))
+		fmt.Print(strings.Repeat(" ", state.width))
 		fmt.Print("\033[F")
 	}
 }
 func showSelectionScreen(state *SelectionScreenState) {
-	width := getWidth()
+	if state.lineConunt != 0 {
+		eraseSelectionScreen(state)
+	}
 
-	eraseSelectionScreen(state)
+	state.Lock()
+	defer state.Unlock()
 
 	buffer := bytes.Buffer{}
 	buffer.WriteRune('\r')
@@ -278,8 +285,8 @@ func showSelectionScreen(state *SelectionScreenState) {
 
 		buffer.WriteString(fmt.Sprintf(
 			"%[1]*s",
-			-width,
-			fmt.Sprintf("%[1]*s", (width+len(state.options[idx].fileName))/2, state.options[idx].fileName),
+			-state.width,
+			fmt.Sprintf("%[1]*s", (state.width+len(state.options[idx].fileName))/2, state.options[idx].fileName),
 		))
 
 		if i == optionCount-1 {
@@ -290,8 +297,8 @@ func showSelectionScreen(state *SelectionScreenState) {
 	buffer.WriteString("Enter launcher name > ")
 	buffer.WriteString(string(state.curText))
 	str := buffer.String()
-	fmt.Printf(str)
-	state.lineConunt = int(math.Ceil(float64(len(str)) / float64(width)))
+	fmt.Print(str)
+	state.lineConunt = int(math.Ceil(float64(len(str)) / float64(state.width)))
 }
 
 type Option struct {
@@ -313,22 +320,25 @@ func (o Options) Less(i, j int) bool {
 	return o[i].dist < o[j].dist
 }
 
-func updateOptions(state *SelectionScreenState) {
-	txt := string(state.curText)
-	for i := range state.options {
-		st := state.options[i].fileName
-		st += strings.Repeat(" ", state.maxLen-len(st))
-		state.options[i].dist = levenshtein.ComputeDistance(txt, st)
+func updateOptions(options Options, txt string, mxLen int) {
+
+	for i := range options {
+		st := options[i].fileName
+		st += strings.Repeat(" ", mxLen-len(st))
+		options[i].dist = levenshtein.ComputeDistance(txt, st)
 	}
-	sort.Sort(state.options)
+	sort.Sort(options)
 }
 
 func processRune(rn rune, state *SelectionScreenState) {
+	state.Lock()
+	defer state.Unlock()
+
 	switch {
 	case rn == 127: // backpace
 		if len(state.curText) > 0 {
 			state.curText = (state.curText)[:len(state.curText)-1]
-			updateOptions(state)
+			updateOptions(state.options, string(state.curText), state.maxLen)
 		}
 	case rn == 13: // enter
 		state.done = true
@@ -337,16 +347,18 @@ func processRune(rn rune, state *SelectionScreenState) {
 		state.exit = true
 	case unicode.IsGraphic(rn):
 		state.curText = append(state.curText, rn)
-		updateOptions(state)
+		updateOptions(state.options, string(state.curText), state.maxLen)
 	}
 }
 
 type SelectionScreenState struct {
+	sync.RWMutex
 	options    Options
 	curText    []rune
 	result     string
 	maxLen     int
 	lineConunt int
+	width      int
 	done       bool
 	exit       bool
 }
@@ -367,6 +379,8 @@ func getLauncherFromUser(cfg *Config) UserResult {
 		}
 
 	}
+
+	state.width = getWidth()
 
 	if len(state.options) == 0 {
 		fmt.Println("You don't have any launchers, try adding some and come back")
@@ -392,6 +406,38 @@ func getLauncherFromUser(cfg *Config) UserResult {
 
 	reader := bufio.NewReader(os.Stdin)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		if ch, err := tsize.NewSizeListener(); err == nil {
+			for {
+				select {
+				case val, ok := <-ch.Change:
+					if !ok {
+						return
+					}
+					state.Lock()
+					w := val.Width
+					state.lineConunt = int(math.Ceil(float64(state.width*state.lineConunt) / float64(w)))
+					state.width = w
+					state.Unlock()
+
+					eraseSelectionScreen(&state)
+
+					state.Lock()
+					state.lineConunt = 0
+					state.Unlock()
+
+					showSelectionScreen(&state)
+				case <-ctx.Done():
+					return
+				}
+
+			}
+		}
+	}()
+
 	for {
 		showSelectionScreen(&state)
 		rn, _, err := reader.ReadRune()
@@ -402,14 +448,20 @@ func getLauncherFromUser(cfg *Config) UserResult {
 
 		processRune(rn, &state)
 
+		print("hey")
+		state.Lock()
 		if state.done || state.exit {
 			state.lineConunt += 1
+			state.Unlock()
+
 			eraseSelectionScreen(&state)
+
 			return UserResult{
 				exit:   state.exit,
 				result: path.Join(cfg.env.launcherDir, state.result+".txt"),
 			}
 		}
+		state.Unlock()
 	}
 }
 
