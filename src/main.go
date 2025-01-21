@@ -213,10 +213,11 @@ func getEnv() (*Env, error) {
 }
 
 type Config struct {
-	env        *Env
-	useArgs    bool
-	stickyMode bool
-	argsUsed   int
+	env            *Env
+	useArgs        bool
+	stickyMode     bool
+	fullScreenMode bool
+	argsUsed       int
 }
 
 type Executable struct {
@@ -230,10 +231,10 @@ func (e *Executable) execute() {
 	}
 
 	cmd := exec.Command(e.command[0], e.command[1:]...)
-	cmd.Stdout = os.Stdout
 
 	var err error
 	if e.curThread {
+		cmd.Stdout = os.Stdout
 		cmd.Stdin = os.Stdin
 		err = cmd.Run()
 	} else {
@@ -245,12 +246,18 @@ func (e *Executable) execute() {
 	}
 }
 
-func getWidth() int {
-	if ws, err := tsize.GetSize(); err == nil {
-		return ws.Width
-	} else {
-		fmt.Println("Couldn't get terminal size")
-		return 200
+func eraseFullScreen(state *SelectionScreenState) {
+	state.RLock()
+	defer state.RUnlock()
+
+	for range state.height {
+		fmt.Print(strings.Repeat(" ", state.width))
+	}
+
+	for range 2 * state.height {
+		fmt.Print("\r")
+		fmt.Print(strings.Repeat(" ", state.width))
+		fmt.Print("\033[F")
 	}
 }
 
@@ -258,12 +265,18 @@ func eraseSelectionScreen(state *SelectionScreenState) {
 	state.RLock()
 	defer state.RUnlock()
 
-	for range state.lineCount - 1 {
+	toBeErased := state.lineCount - 1
+	if state.fullScreenMode {
+		toBeErased = state.height
+	}
+
+	for range toBeErased {
 		fmt.Print("\r")
 		fmt.Print(strings.Repeat(" ", state.width))
 		fmt.Print("\033[F")
 	}
 }
+
 func showSelectionScreen(state *SelectionScreenState) {
 	if state.lineCount > 0 {
 		eraseSelectionScreen(state)
@@ -353,14 +366,16 @@ func processRune(rn rune, state *SelectionScreenState) {
 
 type SelectionScreenState struct {
 	sync.RWMutex
-	options   Options
-	curText   []rune
-	result    string
-	maxLen    int
-	lineCount int
-	width     int
-	done      bool
-	exit      bool
+	options        Options
+	curText        []rune
+	result         string
+	maxLen         int
+	lineCount      int
+	width          int
+	height         int
+	fullScreenMode bool
+	done           bool
+	exit           bool
 }
 
 type UserResult struct {
@@ -369,7 +384,7 @@ type UserResult struct {
 }
 
 func getLauncherFromUser(cfg *Config) UserResult {
-	state := SelectionScreenState{}
+	state := SelectionScreenState{fullScreenMode: cfg.fullScreenMode}
 	for _, v := range getAllLauncherNames(cfg) {
 		state.options = append(state.options, Option{
 			fileName: v,
@@ -380,7 +395,14 @@ func getLauncherFromUser(cfg *Config) UserResult {
 
 	}
 
-	state.width = getWidth()
+	if ws, err := tsize.GetSize(); err == nil {
+		state.width = ws.Width
+		state.height = ws.Height
+	} else {
+		fmt.Println("Couldn't get terminal size")
+		state.width = 200
+		state.height = 200
+	}
 
 	if len(state.options) == 0 {
 		fmt.Println("You don't have any launchers, try adding some and come back")
@@ -409,6 +431,10 @@ func getLauncherFromUser(cfg *Config) UserResult {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	if state.fullScreenMode {
+		eraseFullScreen(&state)
+	}
+
 	go func() {
 		if ch, err := tsize.NewSizeListener(); err == nil {
 			for {
@@ -419,6 +445,7 @@ func getLauncherFromUser(cfg *Config) UserResult {
 					}
 					state.Lock()
 					w := val.Width
+					state.height = val.Height
 					state.lineCount = max(int(math.Ceil(float64(state.width*state.lineCount)/float64(w))), state.lineCount) + 1
 					state.width = w
 					state.Unlock()
@@ -478,6 +505,7 @@ func getConfig() *Config {
 	}
 
 	flag.BoolVar(&cfg.stickyMode, "s", true, "if used sys will keep asking for new commands basically like a shell")
+	flag.BoolVar(&cfg.fullScreenMode, "f", true, "if used sys will erase everything from the screen when it asks you for a launcher name")
 
 	return cfg
 }
