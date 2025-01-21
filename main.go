@@ -4,10 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"flag"
 	"fmt"
-	"github.com/agnivade/levenshtein"
-	tsize "github.com/kopoli/go-terminal-size"
-	"golang.org/x/term"
+	"log"
 	"math"
 	"os"
 	"os/exec"
@@ -16,6 +15,10 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/agnivade/levenshtein"
+	tsize "github.com/kopoli/go-terminal-size"
+	"golang.org/x/term"
 )
 
 const maxOnScreenOptionCount = 20
@@ -27,9 +30,9 @@ func solveEscape(exe *Executable, escapeSq string, cfg *Config) (string, error) 
 	case "input":
 		{
 			if cfg.useArgs {
-				if len(os.Args) > cfg.argsUsed {
+				if len(flag.Args()) > cfg.argsUsed {
 					cfg.argsUsed += 1
-					return os.Args[cfg.argsUsed-1], nil
+					return flag.Arg(cfg.argsUsed - 1), nil
 				} else {
 					return "", errors.New("Not enough args")
 				}
@@ -164,14 +167,21 @@ func getLauncherFile(name string, cfg *Config) (string, error) {
 }
 
 func tryExecuteArgs(cfg *Config) bool {
-	if len(os.Args) == 1 {
+	if len(flag.Args()) == 0 {
 		return false
 	}
 
-	launcherFile, err := getLauncherFile(os.Args[1], cfg)
+	launcherFile, err := getLauncherFile(flag.Arg(0), cfg)
 	if err != nil {
 		return false
 	}
+
+	if exe, err := getExecutable(launcherFile, cfg); err == nil {
+		exe.execute()
+		return true
+	}
+
+	cfg.useArgs = false
 
 	if exe, err := getExecutable(launcherFile, cfg); err == nil {
 		exe.execute()
@@ -201,9 +211,10 @@ func getEnv() (*Env, error) {
 }
 
 type Config struct {
-	useArgs  bool
-	argsUsed int
-	env      *Env
+	env        *Env
+	useArgs    bool
+	stickyMode bool
+	argsUsed   int
 }
 
 type Executable struct {
@@ -402,40 +413,44 @@ func getLauncherFromUser(cfg *Config) UserResult {
 	}
 }
 
-func main() {
+func getConfig() *Config {
 	env, err := getEnv()
+
 	if err != nil {
-		fmt.Println("sys is not installed")
-		return
+		log.Fatal("sys is not installed")
 	}
 
 	cfg := &Config{
-		env:      env,
-		useArgs:  true,
-		argsUsed: 2,
+		env:     env,
+		useArgs: true,
 	}
 
-	if tryExecuteArgs(cfg) {
+	flag.BoolVar(&cfg.stickyMode, "s", true, "if used sys will keep asking for new commands basically like a shell")
+
+	return cfg
+}
+
+func main() {
+	cfg := getConfig()
+
+	if tryExecuteArgs(cfg) && !cfg.stickyMode {
 		return
 	}
 
 	cfg.useArgs = false
 
-	if len(os.Args) == 2 {
-		if launcherFile, err := getLauncherFile(os.Args[1], cfg); err == nil {
-			if exe, err := getExecutable(launcherFile, cfg); err == nil {
-				exe.execute()
-				return
-			}
+	for {
+		res := getLauncherFromUser(cfg)
+		if res.exit {
+			break
 		}
-	}
 
-	res := getLauncherFromUser(cfg)
-	if res.exit {
-		return
-	}
+		if exe, err := getExecutable(res.result, cfg); err == nil {
+			exe.execute()
+		}
 
-	if exe, err := getExecutable(res.result, cfg); err == nil {
-		exe.execute()
+		if !cfg.stickyMode {
+			break
+		}
 	}
 }
