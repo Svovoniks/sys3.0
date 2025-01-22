@@ -504,8 +504,9 @@ func getConfig() *Config {
 		useArgs: true,
 	}
 
-	flag.BoolVar(&cfg.stickyMode, "s", true, "if used sys will keep asking for new commands basically like a shell")
-	flag.BoolVar(&cfg.fullScreenMode, "f", true, "if used sys will erase everything from the screen when it asks you for a launcher name")
+	flag.BoolVar(&cfg.stickyMode, "s", false, "if used sys will keep asking for new commands basically like a shell")
+	flag.BoolVar(&cfg.fullScreenMode, "f", false, "if used sys will erase everything from the screen when it asks you for a launcher name")
+	flag.Parse()
 
 	return cfg
 }
