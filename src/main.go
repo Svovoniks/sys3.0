@@ -61,6 +61,10 @@ func solveEscape(exe *Executable, escapeSq string, cfg *Config) (string, error) 
 		{
 			return os.Getwd()
 		}
+	case "sys_base":
+		{
+			return os.Getwd()
+		}
 	case "cur_thr":
 		{
 			exe.curThread = true
@@ -179,14 +183,14 @@ func tryExecuteArgs(cfg *Config) bool {
 	}
 
 	if exe, err := getExecutable(launcherFile, cfg); err == nil {
-		exe.execute()
+		exe.execute(cfg.debugMode)
 		return true
 	}
 
 	cfg.useArgs = false
 
 	if exe, err := getExecutable(launcherFile, cfg); err == nil {
-		exe.execute()
+		exe.execute(cfg.debugMode)
 		return true
 	}
 
@@ -217,6 +221,7 @@ type Config struct {
 	useArgs        bool
 	stickyMode     bool
 	fullScreenMode bool
+	debugMode      bool
 	argsUsed       int
 }
 
@@ -225,9 +230,13 @@ type Executable struct {
 	curThread bool
 }
 
-func (e *Executable) execute() {
+func (e *Executable) execute(debugMode bool) {
 	if len(e.command) == 0 {
 		return
+	}
+
+	if debugMode {
+        fmt.Printf("About to run: %v\n", strings.Join(e.command, "|"))
 	}
 
 	cmd := exec.Command(e.command[0], e.command[1:]...)
@@ -506,6 +515,7 @@ func getConfig() *Config {
 
 	flag.BoolVar(&cfg.stickyMode, "s", false, "if used sys will keep asking for new commands basically like a shell")
 	flag.BoolVar(&cfg.fullScreenMode, "f", false, "if used sys will erase everything from the screen when it asks you for a launcher name")
+	flag.BoolVar(&cfg.debugMode, "d", false, "enable debug mode")
 	flag.Parse()
 
 	return cfg
@@ -527,7 +537,7 @@ func main() {
 		}
 
 		if exe, err := getExecutable(res.result, cfg); err == nil {
-			exe.execute()
+			exe.execute(cfg.debugMode)
 		}
 
 		if !cfg.stickyMode {
