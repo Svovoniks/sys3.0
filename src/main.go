@@ -11,11 +11,13 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"runtime"
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"unicode"
 
 	"github.com/agnivade/levenshtein"
@@ -244,8 +246,25 @@ func (e *Executable) execute(debugMode bool) {
 	var err error
 	if e.curThread {
 		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 		cmd.Stdin = os.Stdin
-		err = cmd.Run()
+
+		signalChan := make(chan os.Signal, 1)
+		signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- cmd.Run()
+		}()
+
+		select {
+		case sig := <-signalChan:
+			_ = cmd.Process.Signal(sig)
+		case err = <-errChan:
+		}
+
+		signal.Stop(signalChan)
+		close(signalChan)
 	} else {
 		err = cmd.Start()
 	}
