@@ -63,7 +63,7 @@ func solveEscape(exe *Executable, escapeSq string, cfg *Config) (string, error) 
 		}
 	case "sys_base":
 		{
-			return os.Getwd()
+			return cfg.env.baseDir, nil
 		}
 	case "cur_thr":
 		{
@@ -236,7 +236,7 @@ func (e *Executable) execute(debugMode bool) {
 	}
 
 	if debugMode {
-        fmt.Printf("About to run: %v\n", strings.Join(e.command, "|"))
+		fmt.Printf("About to run: %v\n", strings.Join(e.command, "|"))
 	}
 
 	cmd := exec.Command(e.command[0], e.command[1:]...)
