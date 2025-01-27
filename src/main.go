@@ -100,7 +100,7 @@ func getExecutable(fileName string, cfg *Config) (*Executable, error) {
 			continue
 		}
 
-		if runes[i] == '\\' {
+		if runes[i] == '\\' && !readingEscape {
 			justAppend = true
 			continue
 		}
