@@ -503,7 +503,6 @@ func getLauncherFromUser(cfg *Config) UserResult {
 
 		processRune(rn, &state)
 
-		print("hey")
 		state.Lock()
 		if state.done || state.exit {
 			state.lineCount += 1
