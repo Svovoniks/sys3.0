@@ -22,12 +22,12 @@ jobs:
 
       - name: Build for Linux
         run: |
-          mkdir -p build
+          mkdir -p builds
           GOOS=linux GOARCH=amd64 go build -o builds/sys ./...
 
       - name: Build for Windows
         run: |
-          mkdir -p build
+          mkdir -p builds
           GOOS=windows GOARCH=amd64 go build -o builds/sys.exe ./...
 
       - name: Upload artifacts
@@ -46,7 +46,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: build-artifacts
-          path: build/
+          path: builds/
 
       - name: Create GitHub Release
         uses: actions/create-release@v1
