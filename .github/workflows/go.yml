@@ -51,6 +51,7 @@ jobs:
           path: builds/
 
       - name: Create GitHub Release
+        id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -61,6 +62,20 @@ jobs:
             Automated release for v${{ github.run_number }}.
           draft: false
           prerelease: false
-          files: |
-            builds/sys
-            builds/sys
+          
+      - name: Upload Linux build to Release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: builds/linux/sys
+          asset_name: sys3.0-linux
+          asset_content_type: application/octet-stream
+
+      - name: Upload Windows build to Release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: builds/windows/sys.exe
+          asset_name: sys3.0-windows.exe
+          asset_content_type: application/octet-stream
+          
