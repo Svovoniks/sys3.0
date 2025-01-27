@@ -30,7 +30,7 @@ jobs:
         run: |
           mkdir -p builds
           cd src
-          GOOS=windows GOARCH=amd64 go build -o ..builds/sys.exe
+          GOOS=windows GOARCH=amd64 go build -o ../builds/sys.exe
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
