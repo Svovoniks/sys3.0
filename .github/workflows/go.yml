@@ -23,12 +23,12 @@ jobs:
       - name: Build for Linux
         run: |
           mkdir -p builds
-          GOOS=linux GOARCH=amd64 go build -o builds/sys ./...
+          GOOS=linux GOARCH=amd64 go build -o builds/sys
 
       - name: Build for Windows
         run: |
           mkdir -p builds
-          GOOS=windows GOARCH=amd64 go build -o builds/sys.exe ./...
+          GOOS=windows GOARCH=amd64 go build -o builds/sys.exe
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
