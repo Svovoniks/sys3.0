@@ -20,7 +20,6 @@ import (
 	"syscall"
 	"unicode"
 
-	"github.com/agnivade/levenshtein"
 	tsize "github.com/kopoli/go-terminal-size"
 	"golang.org/x/term"
 )
@@ -344,7 +343,7 @@ func showSelectionScreen(state *SelectionScreenState) {
 
 type Option struct {
 	fileName string
-	dist     int
+	weight   int
 }
 
 type Options []Option
@@ -358,17 +357,41 @@ func (o Options) Swap(i, j int) {
 }
 
 func (o Options) Less(i, j int) bool {
-	return o[i].dist < o[j].dist
+	return o[i].weight < o[j].weight
+}
+
+func lcs(s1 string, s2 string) int {
+	N := len(s1)
+	M := len(s2)
+	matrix := make([][]int, N+1)
+	for i := range matrix {
+		matrix[i] = make([]int, M+1)
+	}
+
+	for i := 0; i < N; i++ {
+		for j := 0; j < M; j++ {
+			if s1[i] == s2[j] {
+				matrix[i+1][j+1] = matrix[i][j] + 1
+			} else {
+				max := matrix[i][j+1]
+				if matrix[i+1][j] > max {
+					max = matrix[i+1][j]
+				}
+
+				matrix[i+1][j+1] = max
+			}
+		}
+	}
+	return matrix[N][M]
 }
 
 func updateOptions(options Options, txt string, mxLen int) {
-
 	for i := range options {
 		st := options[i].fileName
 		st += strings.Repeat(" ", mxLen-len(st))
-		options[i].dist = levenshtein.ComputeDistance(txt, st)
+		options[i].weight = lcs(txt, st)
 	}
-	sort.Sort(options)
+	sort.Sort(sort.Reverse(options))
 }
 
 func processRune(rn rune, state *SelectionScreenState) {
