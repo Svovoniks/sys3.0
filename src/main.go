@@ -385,13 +385,18 @@ func lcs(s1 string, s2 string) int {
 	return matrix[N][M]
 }
 
-func updateOptions(options Options, txt string, mxLen int) {
+func updateOptions(options Options, txt string) {
 	for i := range options {
 		st := options[i].fileName
-		st += strings.Repeat(" ", mxLen-len(st))
+		options[i].weight = len(st)
+	}
+	sort.Sort(options)
+
+	for i := range options {
+		st := options[i].fileName
 		options[i].weight = lcs(txt, st)
 	}
-	sort.Sort(sort.Reverse(options))
+	sort.Stable(sort.Reverse(options))
 }
 
 func processRune(rn rune, state *SelectionScreenState) {
@@ -402,16 +407,30 @@ func processRune(rn rune, state *SelectionScreenState) {
 	case rn == 127: // backpace
 		if len(state.curText) > 0 {
 			state.curText = (state.curText)[:len(state.curText)-1]
-			updateOptions(state.options, string(state.curText), state.maxLen)
+			updateOptions(state.options, string(state.curText))
 		}
 	case rn == 13: // enter
 		state.done = true
 		state.result = state.options[0].fileName
+		// state.commandHist = append(state.commandHist, state.result)
+		// state.histIdx++
 	case rn == 3: // ctrl + c
 		state.exit = true
+	// case rn == 16: // ctrl + p
+	// 	if state.histIdx > 0 {
+	// 		state.histIdx--
+	// 		state.curText = []rune(state.commandHist[state.histIdx])
+	// 		state.isHistoric = true
+	// 	}
+	// case rn == 14: // ctrl + n
+	// 	if state.histIdx < len(state.commandHist)-1 {
+	// 		state.histIdx++
+	// 		state.curText = []rune(state.commandHist[state.histIdx])
+	// 		state.isHistoric = true
+	// 	}
 	case unicode.IsGraphic(rn):
 		state.curText = append(state.curText, rn)
-		updateOptions(state.options, string(state.curText), state.maxLen)
+		updateOptions(state.options, string(state.curText))
 	}
 }
 
@@ -427,6 +446,9 @@ type SelectionScreenState struct {
 	fullScreenMode bool
 	done           bool
 	exit           bool
+	// commandHist    []string
+	// histIdx        int
+	// isHistoric     bool
 }
 
 type UserResult struct {
