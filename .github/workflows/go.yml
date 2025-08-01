@@ -100,8 +100,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: builds/sys-intel-mac.exe
-          asset_name: sys-intel-mac.exe
+          asset_path: builds/sys-intel-mac
+          asset_name: sys-intel-mac
           asset_content_type: application/octet-stream
       - name: Upload M Mac Binary
         uses: actions/upload-release-asset@v1
@@ -109,6 +109,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: builds/sys-m-mac.exe
-          asset_name: sys-m-mac.exe
+          asset_path: builds/sys-m-mac
+          asset_name: sys-m-mac
           asset_content_type: application/octet-stream
