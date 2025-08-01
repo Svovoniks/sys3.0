@@ -32,6 +32,18 @@ jobs:
           cd src
           GOOS=windows GOARCH=amd64 go build -o ../builds/sys.exe
 
+      - name: Build for Intel Mac
+        run: |
+          mkdir -p builds
+          cd src
+          GOOS=darwin GOARCH=amd64 go build -o ../builds/sys-intel-mac
+
+      - name: Build for M Mac
+        run: |
+          mkdir -p builds
+          cd src
+          GOOS=darwin GOARCH=arm64 go build -o ../builds/sys-m-mac
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -81,4 +93,22 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: builds/sys.exe
           asset_name: sys-windows.exe
+          asset_content_type: application/octet-stream
+      - name: Upload Intel Mac Binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: builds/sys-intel-mac.exe
+          asset_name: sys-intel-mac.exe
+          asset_content_type: application/octet-stream
+      - name: Upload M Mac Binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: builds/sys-m-mac.exe
+          asset_name: sys-m-mac.exe
           asset_content_type: application/octet-stream
