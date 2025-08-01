@@ -17,8 +17,11 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sys/logger"
 	"syscall"
 	"unicode"
+
+	"slices"
 
 	tsize "github.com/kopoli/go-terminal-size"
 	"golang.org/x/term"
@@ -37,7 +40,7 @@ func solveEscape(exe *Executable, escapeSq string, cfg *Config) (string, error) 
 					cfg.argsUsed += 1
 					return flag.Arg(cfg.argsUsed - 1), nil
 				} else {
-					return "", errors.New("Not enough args")
+					return "", errors.New("not enough args")
 				}
 			} else {
 				fmt.Printf("Enter %v > ", ls[1])
@@ -73,7 +76,7 @@ func solveEscape(exe *Executable, escapeSq string, cfg *Config) (string, error) 
 		}
 	}
 
-	return "", fmt.Errorf("Unknown escape key %v", errors.ErrUnsupported)
+	return "", fmt.Errorf("unknown escape key %v", errors.ErrUnsupported)
 
 }
 
@@ -114,7 +117,7 @@ func getExecutable(fileName string, cfg *Config) (*Executable, error) {
 			readingEscape = false
 			res, err := solveEscape(exe, string(runes[escapeStartIdx+1:i]), cfg)
 			if err != nil {
-				return nil, errors.New("Couldn't solve ecape sequence")
+				return nil, errors.New("couldn't solve escape sequence")
 			}
 			buff.WriteString(res)
 			continue
@@ -164,17 +167,17 @@ func getAllLauncherNames(cfg *Config) []string {
 }
 
 func getLauncherFile(name string, cfg *Config) (string, error) {
-	for _, file := range getAllLauncherNames(cfg) {
-		if file == name {
-			return path.Join(cfg.env.launcherDir, name+".txt"), nil
-		}
+	if slices.Contains(getAllLauncherNames(cfg), name) {
+		cfg.argsUsed = 1
+		return path.Join(cfg.env.launcherDir, name+".txt"), nil
 	}
 
-	return "", errors.New("No such launcher")
+	return "", errors.New("no such launcher")
 }
 
 func tryExecuteArgs(cfg *Config) bool {
 	if len(flag.Args()) == 0 {
+		logger.Log("Args are empty")
 		return false
 	}
 
@@ -184,17 +187,22 @@ func tryExecuteArgs(cfg *Config) bool {
 	}
 
 	if exe, err := getExecutable(launcherFile, cfg); err == nil {
-		exe.execute(cfg.debugMode)
+		exe.execute()
 		return true
+	} else {
+		logger.Log("Couldn't get an executable with args:", err)
 	}
 
 	cfg.useArgs = false
 
 	if exe, err := getExecutable(launcherFile, cfg); err == nil {
-		exe.execute(cfg.debugMode)
+		exe.execute()
 		return true
+	} else {
+		logger.Log("Couldn't get an executable without args:", err)
 	}
 
+	logger.Log("Couldn't execute args", err)
 	return false
 }
 
@@ -207,7 +215,7 @@ type Env struct {
 func getEnv() (*Env, error) {
 	baseDir := os.Getenv("sys")
 	if baseDir == "" {
-		return nil, errors.New("Not installed")
+		return nil, errors.New("not installed")
 	}
 
 	return &Env{
@@ -231,14 +239,12 @@ type Executable struct {
 	curThread bool
 }
 
-func (e *Executable) execute(debugMode bool) {
+func (e *Executable) execute() {
 	if len(e.command) == 0 {
 		return
 	}
 
-	if debugMode {
-		fmt.Printf("About to run: %v\n", strings.Join(e.command, "|"))
-	}
+	logger.Logf("About to run: %v\n", strings.Join(e.command, "|"))
 
 	cmd := exec.Command(e.command[0], e.command[1:]...)
 
@@ -581,6 +587,14 @@ func getConfig() *Config {
 	flag.BoolVar(&cfg.debugMode, "d", false, "enable debug mode")
 	flag.Parse()
 
+	if cfg.debugMode {
+		logger.Enable()
+	}
+
+	logger.Log("Debug mode enabled")
+	logger.Log("cfg: ", cfg)
+	logger.Log("args: ", flag.Args())
+
 	return cfg
 }
 
@@ -588,6 +602,7 @@ func main() {
 	cfg := getConfig()
 
 	if tryExecuteArgs(cfg) && !cfg.stickyMode {
+		logger.Log("Exiting...")
 		return
 	}
 
@@ -600,7 +615,7 @@ func main() {
 		}
 
 		if exe, err := getExecutable(res.result, cfg); err == nil {
-			exe.execute(cfg.debugMode)
+			exe.execute()
 		}
 
 		if !cfg.stickyMode {
